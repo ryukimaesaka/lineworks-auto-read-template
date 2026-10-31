@@ -1,0 +1,64 @@
+name: LINE WORKS auto-read
+
+on:
+  schedule:
+    - cron: '0 * * * *'      # 毎時0分（GitHubの都合で数分〜数十分遅れることあり）
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'DRY RUN（既読化せず、既読化する予定の部屋だけログに出す）'
+        type: boolean
+        default: false
+
+concurrency:
+  group: auto-read
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    # ブラウザ＋依存が最初から入った公式イメージを使う（apt install不要＝高速・安定）
+    # ※ package.json の playwright バージョンとこのタグを必ず一致させること
+    container:
+      image: mcr.microsoft.com/playwright:v1.47.0-jammy
+    timeout-minutes: 10
+    env:
+      # ---- 動作設定（必要に応じて編集）----
+      SKIP_DIRECT_MESSAGES: 'true'   # 'false' にすると1:1個人トークも既読化
+      EXCLUDE_KEYWORDS: ''           # 既読化しない部屋名（部分一致・カンマ区切り）例: '社長,経営,all_'
+      INCLUDE_NAMES: ''              # チーム紐付きでないグループを対象に含める部屋名（部分一致・カンマ区切り）
+      MENTION_IGNORE_NAMES: ''       # メンションが付いても既読化してよい部屋名（@全員専用の部屋など）
+      CLICK_DELAY_MS: '450'
+      # ---- DRY RUN: 手動実行でチェックを入れた時だけ '1' になる。定期実行では常に本番 ----
+      DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deps
+        run: npm install
+
+      - name: Run sweep
+        env:
+          LW_STATE: ${{ secrets.LW_STATE }}
+          LW_ALERT_WEBHOOK: ${{ secrets.LW_ALERT_WEBHOOK }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node ci-run.js
+
+      - name: Persist refreshed session (optional)
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          if [ -n "$GH_TOKEN" ] && [ -f state.new.json ]; then
+            base64 -w0 state.new.json > state.b64
+            if command -v gh >/dev/null 2>&1; then
+              gh secret set LW_STATE --repo "$GITHUB_REPOSITORY" < state.b64 && echo "LW_STATE updated" || echo "update failed"
+            else
+              echo "gh未導入のためSecret更新はスキップ"
+            fi
+          else
+            echo "skip secret update"
+          fi

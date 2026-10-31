@@ -1,0 +1,9 @@
+# セッション・秘密情報は絶対にコミットしない
+state.json
+state.new.json
+state.b64
+.env
+.lw-profile/
+logs/
+*.log
+node_modules/

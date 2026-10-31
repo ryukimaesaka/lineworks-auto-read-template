@@ -1,0 +1,17 @@
+{
+  "name": "lineworks-auto-read",
+  "version": "3.0.0",
+  "description": "LINE WORKS: メンションされたグループ以外を毎時自動既読化するRPA（GitHub Actions版 / 常駐版 両対応）",
+  "private": true,
+  "main": "ci-run.js",
+  "scripts": {
+    "login": "node login.js",
+    "ci": "node ci-run.js",
+    "daemon": "node daemon.js",
+    "dry": "DRY_RUN=1 node auto-read.js",
+    "run": "node auto-read.js"
+  },
+  "dependencies": {
+    "playwright": "1.47.0"
+  }
+}
